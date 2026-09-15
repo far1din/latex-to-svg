@@ -120,6 +120,7 @@
         <label><input type="checkbox" id="display" checked> display mode</label>
         <label>size <input type="number" id="size" value="20" min="6" max="200" step="1"> px</label>
         <label>color <input type="color" id="color" value="#000000"></label>
+        <label title="Inline every glyph as its own <path> with its own fill attribute, so editors like Canva, Figma and Illustrator can recolor the pieces individually."><input type="checkbox" id="flatten" checked> editable colors</label>
       </div>
       <div class="swatches" id="swatches"></div>
       <div class="examples" id="examples"></div>
@@ -168,6 +169,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const input = $('input'), displayEl = $('display'), sizeEl = $('size'), colorEl = $('color');
+  const flattenEl = $('flatten');
   const preview = $('preview'), code = $('code'), meta = $('meta'), measure = $('measure');
 
   const EXAMPLES = {
@@ -190,6 +192,7 @@
   displayEl.checked = store.get('display', '1') === '1';
   sizeEl.value = store.get('size', '20');
   colorEl.value = store.get('color', '#000000');
+  flattenEl.checked = store.get('flatten', '1') === '1';
 
   // --- color swatches ---
   const SWATCHES = ['#000000', '#b1e133', '#fffd59', '#fe5005', '#38b6ff', '#e2a9f1', '#ed5382'];
@@ -224,6 +227,49 @@
 
   function round(n) { return Math.round(n * 100) / 100; }
 
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // MathJax draws each glyph as <use xlink:href="#id"> pointing into <defs>, and puts
+  // the color on a single ancestor <g>. Nothing that is actually drawn carries a fill,
+  // so editors that recolor per shape (Canva, Figma, Illustrator) have nothing to grab.
+  // This inlines every <use> as a real <path> and gives each shape its own fill.
+  function flattenUses(svg) {
+    const defs = svg.querySelector('defs');
+    if (!defs) return;
+
+    const byId = {};
+    defs.querySelectorAll('[id]').forEach(function (el) { byId[el.getAttribute('id')] = el; });
+
+    let use, guard = 0;
+    while ((use = svg.querySelector('use')) && guard++ < 10000) {
+      const href = use.getAttribute('xlink:href') || use.getAttribute('href') || '';
+      const target = byId[href.replace(/^#/, '')];
+      if (!target) { use.remove(); continue; }
+
+      const clone = target.cloneNode(true);
+      clone.removeAttribute('id');
+
+      // Preserve whatever placement the <use> carried.
+      const x = use.getAttribute('x'), y = use.getAttribute('y');
+      const parts = [];
+      if (use.getAttribute('transform')) parts.push(use.getAttribute('transform'));
+      if ((x && x !== '0') || (y && y !== '0')) parts.push('translate(' + (x || 0) + ',' + (y || 0) + ')');
+
+      let node = clone;
+      if (parts.length) {
+        node = svg.ownerDocument.createElementNS(SVG_NS, 'g');
+        node.setAttribute('transform', parts.join(' '));
+        node.appendChild(clone);
+      }
+      use.replaceWith(node);   // any nested <use> is picked up by the next loop pass
+    }
+
+    defs.remove();
+    svg.querySelectorAll('path, rect, polygon, circle, ellipse').forEach(function (el) {
+      if (!el.hasAttribute('fill')) el.setAttribute('fill', 'currentColor');
+    });
+  }
+
   function build() {
     const tex = input.value.trim();
     if (!tex) return { empty: true };
@@ -244,6 +290,8 @@
     const rect = svg.getBoundingClientRect();
     measure.replaceChildren();
 
+    if (flattenEl.checked) flattenUses(svg);
+
     svg.removeAttribute('style');          // drop vertical-align meant for inline flow
     svg.setAttribute('width', round(rect.width));
     svg.setAttribute('height', round(rect.height));
@@ -259,6 +307,7 @@
     store.set('display', displayEl.checked ? '1' : '0');
     store.set('size', sizeEl.value);
     store.set('color', colorEl.value);
+    store.set('flatten', flattenEl.checked ? '1' : '0');
     syncSwatches();
 
     const res = build();
@@ -293,7 +342,7 @@
   const renderSoon = debounce(render, 150);
 
   input.addEventListener('input', renderSoon);
-  [displayEl, sizeEl, colorEl].forEach(function (el) {
+  [displayEl, sizeEl, colorEl, flattenEl].forEach(function (el) {
     el.addEventListener('input', renderSoon);
     el.addEventListener('change', renderSoon);
   });
