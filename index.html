@@ -66,6 +66,13 @@
     background: transparent; color: var(--text); font: inherit;
   }
   input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: transparent; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+  .swatch {
+    width: 28px; height: 28px; padding: 0; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--border); box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+  }
+  .swatch:hover { transform: scale(1.08); }
+  .swatch[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
   .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
   .chip {
     font-size: 12px; padding: 4px 9px; border-radius: 999px; cursor: pointer;
@@ -114,6 +121,7 @@
         <label>size <input type="number" id="size" value="20" min="6" max="200" step="1"> px</label>
         <label>color <input type="color" id="color" value="#000000"></label>
       </div>
+      <div class="swatches" id="swatches"></div>
       <div class="examples" id="examples"></div>
     </section>
 
@@ -183,6 +191,27 @@
   sizeEl.value = store.get('size', '20');
   colorEl.value = store.get('color', '#000000');
 
+  // --- color swatches ---
+  const SWATCHES = ['#000000', '#b1e133', '#fffd59', '#fe5005', '#38b6ff', '#e2a9f1', '#ed5382'];
+  const swWrap = $('swatches');
+  SWATCHES.forEach(function (hex) {
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.style.background = hex;
+    b.title = hex;
+    b.setAttribute('aria-label', 'Use color ' + hex);
+    b.dataset.hex = hex;
+    b.onclick = function () { colorEl.value = hex; render(); };
+    swWrap.appendChild(b);
+  });
+
+  function syncSwatches() {
+    const cur = colorEl.value.toLowerCase();
+    swWrap.querySelectorAll('.swatch').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.hex === cur ? 'true' : 'false');
+    });
+  }
+
   // --- examples ---
   const exWrap = $('examples');
   Object.keys(EXAMPLES).forEach(function (name) {
@@ -230,6 +259,7 @@
     store.set('display', displayEl.checked ? '1' : '0');
     store.set('size', sizeEl.value);
     store.set('color', colorEl.value);
+    syncSwatches();
 
     const res = build();
     current = null;
