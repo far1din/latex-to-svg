@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LaTeX → SVG</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #e2e5ea;
+    --text: #1b1f24;
+    --muted: #6b7280;
+    --accent: #3b5bdb;
+    --error: #c92a2a;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c;
+      --panel: #1c2027;
+      --border: #2c323c;
+      --text: #e6e8eb;
+      --muted: #9aa3af;
+      --accent: #7a93ff;
+      --error: #ff8787;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+  textarea {
+    width: 100%;
+    min-height: 180px;
+    resize: vertical;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 12px; font-size: 13px; }
+  .controls label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  input[type=number] {
+    width: 68px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px;
+    background: transparent; color: var(--text); font: inherit;
+  }
+  input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: transparent; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chip {
+    font-size: 12px; padding: 4px 9px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+  }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+  #preview {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 180px; padding: 16px; overflow: auto;
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  }
+  #preview svg { max-width: 100%; height: auto; }
+  .error { color: var(--error); font: 13px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  button.btn {
+    font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+  }
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.btn.primary:hover { opacity: .9; color: #fff; }
+  .meta { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+  #code {
+    width: 100%; min-height: 160px; margin-top: 10px; padding: 10px;
+    border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text);
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  #measure { position: absolute; visibility: hidden; left: -9999px; top: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>LaTeX → SVG</h1>
+    <p>Type LaTeX, get a standalone SVG. Everything runs in your browser.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="label">LaTeX</div>
+      <textarea id="input" spellcheck="false" placeholder="e.g. \frac{-b \pm \sqrt{b^2-4ac}}{2a}"></textarea>
+      <div class="controls">
+        <label><input type="checkbox" id="display" checked> display mode</label>
+        <label>size <input type="number" id="size" value="20" min="6" max="200" step="1"> px</label>
+        <label>color <input type="color" id="color" value="#000000"></label>
+      </div>
+      <div class="examples" id="examples"></div>
+    </section>
+
+    <section class="panel">
+      <div class="label">Preview</div>
+      <div id="preview"></div>
+      <div class="actions">
+        <button class="btn primary" id="download">Download SVG</button>
+        <button class="btn" id="copy">Copy SVG</button>
+        <button class="btn" id="png">Download PNG</button>
+      </div>
+      <div class="meta" id="meta"></div>
+    </section>
+  </div>
+
+  <details>
+    <summary>SVG source</summary>
+    <textarea id="code" spellcheck="false" readonly></textarea>
+  </details>
+</div>
+
+<div id="measure"></div>
+
+<script>
+  window.mathJaxReady = new Promise(function (resolve) { window.__mjResolve = resolve; });
+  window.MathJax = {
+    tex: {
+      // Drop 'noundefined' so a typo'd macro raises an error instead of being
+      // silently baked into the exported SVG as a red box.
+      packages: { '[-]': ['noundefined'] },
+      // Surface TeX errors to us instead of rendering MathJax's error output.
+      formatError: function (jax, err) { throw err; }
+    },
+    svg: { fontCache: 'local' },   // inline <defs> so each SVG is standalone
+    startup: {
+      typeset: false,
+      pageReady: function () { window.__mjResolve(); }
+    }
+  };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg-full.js"></script>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const input = $('input'), displayEl = $('display'), sizeEl = $('size'), colorEl = $('color');
+  const preview = $('preview'), code = $('code'), meta = $('meta'), measure = $('measure');
+
+  const EXAMPLES = {
+    'Quadratic': '\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}',
+    'Integral': '\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}',
+    'Matrix': '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}^{-1} = \\frac{1}{ad-bc}\\begin{pmatrix} d & -b \\\\ -c & a \\end{pmatrix}',
+    'Aligned': '\\begin{align}\n  \\nabla \\cdot \\mathbf{E} &= \\frac{\\rho}{\\varepsilon_0} \\\\\n  \\nabla \\times \\mathbf{B} &= \\mu_0\\mathbf{J} + \\mu_0\\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}\n\\end{align}',
+    'Sum': '\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}'
+  };
+
+  let current = null; // {text, width, height}
+
+  // --- settings persistence (best effort) ---
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('l2s:' + k); return v === null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('l2s:' + k, v); } catch (e) {} }
+  };
+
+  input.value = store.get('tex', EXAMPLES['Quadratic']);
+  displayEl.checked = store.get('display', '1') === '1';
+  sizeEl.value = store.get('size', '20');
+  colorEl.value = store.get('color', '#000000');
+
+  // --- examples ---
+  const exWrap = $('examples');
+  Object.keys(EXAMPLES).forEach(function (name) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = name;
+    b.onclick = function () { input.value = EXAMPLES[name]; render(); };
+    exWrap.appendChild(b);
+  });
+
+  function round(n) { return Math.round(n * 100) / 100; }
+
+  function build() {
+    const tex = input.value.trim();
+    if (!tex) return { empty: true };
+
+    const size = Math.min(200, Math.max(6, +sizeEl.value || 20));
+    let container;
+    try {
+      container = MathJax.tex2svg(tex, { display: displayEl.checked });
+    } catch (err) {
+      return { error: (err && err.message) ? err.message : String(err) };
+    }
+    const svg = container.querySelector('svg');
+    if (!svg) return { error: 'No SVG produced.' };
+
+    // Measure at the requested font size so we can write real pixel dimensions.
+    measure.style.fontSize = size + 'px';
+    measure.replaceChildren(container);
+    const rect = svg.getBoundingClientRect();
+    measure.replaceChildren();
+
+    svg.removeAttribute('style');          // drop vertical-align meant for inline flow
+    svg.setAttribute('width', round(rect.width));
+    svg.setAttribute('height', round(rect.height));
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+    let text = new XMLSerializer().serializeToString(svg);
+    text = text.replace(/currentColor/g, colorEl.value);  // bake in the color
+    return { text: text, width: round(rect.width), height: round(rect.height) };
+  }
+
+  function render() {
+    store.set('tex', input.value);
+    store.set('display', displayEl.checked ? '1' : '0');
+    store.set('size', sizeEl.value);
+    store.set('color', colorEl.value);
+
+    const res = build();
+    current = null;
+
+    if (res.empty) {
+      preview.innerHTML = '';
+      code.value = '';
+      meta.textContent = '';
+      return;
+    }
+    if (res.error) {
+      preview.innerHTML = '';
+      const p = document.createElement('div');
+      p.className = 'error';
+      p.textContent = res.error;
+      preview.appendChild(p);
+      code.value = '';
+      meta.textContent = '';
+      return;
+    }
+    current = res;
+    preview.innerHTML = res.text;
+    code.value = res.text;
+    meta.textContent = res.width + ' × ' + res.height + ' px · ' + (new Blob([res.text]).size) + ' bytes';
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return function () { clearTimeout(t); t = setTimeout(fn, ms); };
+  }
+  const renderSoon = debounce(render, 150);
+
+  input.addEventListener('input', renderSoon);
+  [displayEl, sizeEl, colorEl].forEach(function (el) {
+    el.addEventListener('input', renderSoon);
+    el.addEventListener('change', renderSoon);
+  });
+
+  function saveBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  $('download').onclick = function () {
+    if (!current) return;
+    saveBlob(new Blob([current.text], { type: 'image/svg+xml;charset=utf-8' }), 'equation.svg');
+  };
+
+  $('copy').onclick = function () {
+    if (!current) return;
+    const btn = $('copy');
+    navigator.clipboard.writeText(current.text).then(function () {
+      btn.textContent = 'Copied!';
+      setTimeout(function () { btn.textContent = 'Copy SVG'; }, 1200);
+    }).catch(function () {
+      code.select();
+      document.execCommand('copy');
+    });
+  };
+
+  $('png').onclick = function () {
+    if (!current) return;
+    const scale = 3;
+    const url = URL.createObjectURL(new Blob([current.text], { type: 'image/svg+xml;charset=utf-8' }));
+    const img = new Image();
+    img.onload = function () {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(current.width * scale));
+      canvas.height = Math.max(1, Math.round(current.height * scale));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(function (blob) { saveBlob(blob, 'equation.png'); });
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); };
+    img.src = url;
+  };
+
+  window.mathJaxReady.then(render);
+})();
+</script>
+</body>
+</html>
