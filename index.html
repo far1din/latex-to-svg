@@ -133,6 +133,7 @@
         <button class="btn primary" id="download">Download SVG</button>
         <button class="btn" id="copy">Copy SVG</button>
         <button class="btn" id="png">Download PNG</button>
+        <button class="btn" id="copypng">Copy PNG</button>
       </div>
       <div class="meta" id="meta"></div>
     </section>
@@ -367,29 +368,59 @@
     if (!current) return;
     const btn = $('copy');
     navigator.clipboard.writeText(current.text).then(function () {
-      btn.textContent = 'Copied!';
-      setTimeout(function () { btn.textContent = 'Copy SVG'; }, 1200);
+      flash(btn, 'Copied!', 'Copy SVG');
     }).catch(function () {
       code.select();
       document.execCommand('copy');
     });
   };
 
+  // Rasterize the current SVG at 3x. Resolves with a PNG blob.
+  function toPng() {
+    return new Promise(function (resolve, reject) {
+      if (!current) { reject(new Error('Nothing to render.')); return; }
+      const scale = 3;
+      const url = URL.createObjectURL(new Blob([current.text], { type: 'image/svg+xml;charset=utf-8' }));
+      const img = new Image();
+      img.onload = function () {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(current.width * scale));
+        canvas.height = Math.max(1, Math.round(current.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function (blob) {
+          blob ? resolve(blob) : reject(new Error('Could not encode PNG.'));
+        });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load SVG.')); };
+      img.src = url;
+    });
+  }
+
+  function flash(btn, msg, restore) {
+    btn.textContent = msg;
+    setTimeout(function () { btn.textContent = restore; }, 1200);
+  }
+
   $('png').onclick = function () {
     if (!current) return;
-    const scale = 3;
-    const url = URL.createObjectURL(new Blob([current.text], { type: 'image/svg+xml;charset=utf-8' }));
-    const img = new Image();
-    img.onload = function () {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(current.width * scale));
-      canvas.height = Math.max(1, Math.round(current.height * scale));
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(function (blob) { saveBlob(blob, 'equation.png'); });
-    };
-    img.onerror = function () { URL.revokeObjectURL(url); };
-    img.src = url;
+    toPng().then(function (blob) { saveBlob(blob, 'equation.png'); }).catch(function () {});
+  };
+
+  $('copypng').onclick = function () {
+    if (!current) return;
+    const btn = $('copypng');
+    if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write) {
+      flash(btn, 'Not supported', 'Copy PNG');
+      return;
+    }
+    // Safari drops the user gesture across an await, so hand ClipboardItem the
+    // pending promise instead of resolving it first.
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': toPng() })]).then(function () {
+      flash(btn, 'Copied!', 'Copy PNG');
+    }).catch(function () {
+      flash(btn, 'Copy failed', 'Copy PNG');
+    });
   };
 
   window.mathJaxReady.then(render);
