@@ -1,68 +1,95 @@
 # LaTeX → SVG
 
-A tiny web app that turns LaTeX math into a standalone SVG file — like
-[viereck.ch/latex-to-svg](https://viereck.ch/latex-to-svg/).
+Turn LaTeX math into a standalone, editable SVG — entirely in the browser.
 
-Everything runs in the browser: [MathJax](https://www.mathjax.org/) renders the
-TeX to SVG, so there is **no backend, no build step, no dependencies to install**.
-It is one file: `index.html`.
+[![Deploy to GitHub Pages](https://github.com/far1din/latex-to-svg/actions/workflows/pages.yml/badge.svg)](https://github.com/far1din/latex-to-svg/actions/workflows/pages.yml)
+![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
+![Single file](https://img.shields.io/badge/source-1%20file-blue)
+
+[MathJax](https://www.mathjax.org/) does the typesetting client-side, so there is
+no backend, no build step and nothing to install. The whole app is one file:
+[`index.html`](index.html).
+
+Inspired by [viereck.ch/latex-to-svg](https://viereck.ch/latex-to-svg/), with one
+addition that matters if you paste the result into a design tool: the exported
+glyphs stay individually recolorable. See [Editable colors](#editable-colors).
 
 ## Features
 
-- Live preview as you type
-- Display or inline mode, font size, color
-- Standalone SVG (fonts are inlined as paths, so it works anywhere)
-- **Editable colors** — every glyph gets its own `<path fill="...">`, so Canva,
-  Figma and Illustrator can recolor the result (see below)
-- Copy SVG, download `.svg`, or download a 3× `.png`
-- Full TeX package set (`amsmath`, `physics`, `color`, …) via MathJax's `tex-svg-full`
+- **Live preview** — renders as you type, with TeX errors surfaced inline
+- **Editable colors** — every glyph is its own `<path fill="…">`, so Canva, Figma
+  and Illustrator can recolor the import
+- **Standalone output** — fonts are inlined as paths; the SVG renders anywhere,
+  with no external font or stylesheet
+- **Four ways out** — download `.svg`, copy SVG markup, download a 3× `.png`, or
+  copy the PNG straight to the clipboard
+- **Full TeX package set** — `amsmath`, `physics`, `color` and the rest, via
+  MathJax's `tex-svg-full`
+- **Settings persist** — your last input and options are restored from
+  `localStorage`
 
-## Run locally
+## Quick start
 
-Just open `index.html` in a browser, or:
+Open `index.html` in a browser. That's it.
+
+To serve it over HTTP instead (needed for clipboard writes in some browsers):
 
 ```sh
 python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
-## Deploy
+## Options
 
-**GitHub Pages** — push the repo, then Settings → Pages → Source: *Deploy from a
-branch*, branch `main`, folder `/ (root)`. Done. (A workflow is also included at
-`.github/workflows/pages.yml` if you prefer Actions-based deploys — pick one.)
+| Control | Default | What it does |
+| --- | --- | --- |
+| `display mode` | on | Display-style math (centered, full-size operators) vs. inline style |
+| `size` | `20` px | Font size the SVG is measured at; sets the exported `width`/`height` |
+| `color` | `#000000` | Baked into the exported file as a literal fill. Swatches below the controls set it in one click |
+| `editable colors` | on | Inlines each glyph as its own `<path>` with its own `fill` — see below |
 
-**Vercel** — `vercel` (or import the repo in the dashboard). No framework, no
-build command, output directory `.`.
+## Editable colors
 
-**Netlify / Cloudflare Pages / any static host** — drop the folder in.
-
-## Why "editable colors" exists
-
-MathJax emits each glyph as `<use xlink:href="#id">` pointing into a `<defs>`
-block, and puts the color on a single ancestor `<g>`:
+MathJax emits each glyph as a `<use>` pointing into a `<defs>` block, and puts
+the color on a single ancestor `<g>`:
 
 ```svg
-<defs><path id="MJX-TEX-I-1D465" d="..."/></defs>
+<defs><path id="MJX-TEX-I-1D465" d="…"/></defs>
 <g fill="#000" stroke="#000">          <!-- the only fill in the file -->
   <g><use xlink:href="#MJX-TEX-I-1D465"/></g>
 </g>
 ```
 
-This renders correctly everywhere, but nothing that is *drawn* carries a fill —
-the glyphs inherit it. Editors that recolor shape-by-shape (Canva especially)
-then find nothing to recolor, so the import looks locked.
+That renders correctly everywhere, but nothing that is actually *drawn* carries a
+fill — the glyphs inherit it. Editors that recolor shape by shape (Canva
+especially) find nothing to grab, so the import looks locked.
 
-With **editable colors** on (the default), every `<use>` is replaced by a real
-`<path>` carrying its own `fill`, and `<defs>` is dropped. Rendering is
-pixel-identical; the file is usually the same size or smaller, since the glyph
-ids and `<defs>` go away. The exception is text with many repeated characters,
-where shared glyphs can no longer be reused — turn the option off there if size
+With **editable colors** on, every `<use>` is replaced by a real `<path>`
+carrying its own `fill`, and `<defs>` is dropped. Rendering is pixel-identical,
+and the file is usually the same size or smaller — the glyph ids and `<defs>`
+wrapper go away.
+
+The exception is text with many repeated characters, where shared glyph
+definitions can no longer be reused. Turn the option off there if file size
 matters more than recoloring.
 
-## Notes
+## Deploying
 
-- Requires an internet connection for the MathJax CDN. To make it fully offline,
-  download `tex-svg-full.js` next to `index.html` and point the `<script src>` at it.
-- Only the math itself is rendered (no `\documentclass`, `tikz` or full-document
-  LaTeX) — that would need a real LaTeX toolchain on a server.
+The repo is a static folder, so any host works.
+
+| Host | Steps |
+| --- | --- |
+| **GitHub Pages** | Settings → Pages → Source: *GitHub Actions*. The included [`pages.yml`](.github/workflows/pages.yml) workflow deploys on every push to `main`. Or pick *Deploy from a branch* (`main`, `/ (root)`) and delete the workflow — use one or the other, not both. |
+| **Vercel** | `vercel`, or import the repo. No framework, no build command, output directory `.` |
+| **Netlify / Cloudflare Pages** | Drag the folder in, or connect the repo with an empty build command |
+
+## Limitations
+
+- **Math only.** No `\documentclass`, `tikz` or full-document LaTeX — those need
+  a real LaTeX toolchain on a server.
+- **Needs the CDN.** MathJax loads from jsDelivr at startup. For a fully offline
+  build, download `tex-svg-full.js` next to `index.html` and repoint the
+  `<script src>`.
+- **Copy PNG needs a current browser.** It uses the async clipboard API
+  (`ClipboardItem`), which older browsers lack. The button reports that instead
+  of failing silently, and the PNG download works regardless.
