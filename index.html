@@ -348,6 +348,54 @@
     el.addEventListener('change', renderSoon);
   });
 
+  // --- type anywhere ---
+  // The LaTeX box is the only thing you ever type into, so typing, pasting or
+  // hitting Cmd/Ctrl+A anywhere on the page is routed to it. Anything already
+  // aimed at a field (the number/color inputs, the SVG source box) is left alone.
+  function inField(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (inField(e.target)) return;
+    const mod = e.metaKey || e.ctrlKey;
+
+    if (mod && !e.altKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();          // don't select the whole page instead
+      input.focus();
+      input.select();
+      return;
+    }
+
+    if (mod && !e.altKey && (e.key === 'v' || e.key === 'V')) {
+      input.focus();               // no preventDefault: the paste lands in the box
+      return;
+    }
+
+    if (mod || e.altKey) return;   // every other shortcut belongs to the browser
+
+    // Space presses whatever button has focus; everything else still routes.
+    if (e.key === ' ' && e.target && e.target.tagName === 'BUTTON') return;
+
+    // Moving focus mid-keydown lets the character itself land in the box, which
+    // keeps dead keys and IME composition working.
+    if (e.key.length === 1) input.focus();
+  });
+
+  // Paste from the right-click menu never fires a keydown, so catch it directly.
+  document.addEventListener('paste', function (e) {
+    if (inField(e.target)) return;
+    const cb = e.clipboardData || window.clipboardData;
+    const text = cb && cb.getData('text');
+    if (!text) return;
+    e.preventDefault();
+    input.focus();
+    if (!document.execCommand('insertText', false, text)) input.value += text;
+    render();
+  });
+
   function saveBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
